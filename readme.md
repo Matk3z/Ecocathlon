@@ -10,15 +10,15 @@ Ce programme a été écrit pour être utilisé avec le circuit conçu pour l'ec
 
 Le circuit est basé sur le microcontrolleur esp8266 implementé grâce au module [ESP-WROOM-02](https://www.espressif.com/sites/default/files/documentation/0c-esp-wroom-02_datasheet_en.pdf). Le gerber file du circuit principal se trouve dans "./circuit". A se circuit principal se rajoute une batterie LI-PO de 2000mAh et un module RFID basé sur le [MFRC522](https://www.nxp.com/docs/en/data-sheet/MFRC522.pdf).
 
-Voici le schéma de la manière de souder ces différents éléments ensemble.
-![Schéma soudure](./circuit/schema.png)
+Voici le schéma de la manière de souder ces différents éléments ensemble.  
+![Schéma circuit](./circuit/circuit.svg)
 
 ### **Flasher le programme sur le circuit**
 
 Une fois le circuit souder il faut uploader le programme sur l'esp8266. Pour cela on doit utiliser un [usb to tll converter](https://www.amazon.fr/AZDelivery-Adaptateur-FT232RL-Arduino-Adapter/dp/B01N9RZK6I/ref=rtpb_2/261-7673969-5887468?_encoding=UTF8).
 
-L'usb to ttl converter ce connecte de cette facon.
-![schéma connexion ftdi](./circuit/ftdi.png)
+L'usb to ttl converter ce connecte de cette facon.  
+![schéma connexion ftdi](./circuit/ftdi.svg)
 
 Lorsque le converter est connecté a l'ordinateur et aux circuit une led verte devrait etre allumée.
 
