@@ -81,8 +81,8 @@ char ssid[] = "k3z";
 char pass[] = "krOT9DjR4t2dyFDdDQJs";
 */
 
-char ssid[] = "ecocathlon";
-char pass[] = "ecocathlon";
+char ssid[] = "LivingLab";
+char pass[] = "123fablab";
 
 
 MFRC522 rfid(CS, RST);
