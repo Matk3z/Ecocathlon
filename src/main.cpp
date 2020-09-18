@@ -713,6 +713,7 @@ void loop() {
         SetStatus(ONGOING_STATUS);
         SetLedColor(GameConfiguration.teamColor);
         timer.AddTimer(millis(), 5000, *LedShowProgression);
+        delay(500);
         break;
         }
         else{

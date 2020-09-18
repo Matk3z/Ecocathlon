@@ -25,6 +25,7 @@ bool Tag::TestQCM(int answerData)
     if(answerData == 1){
         EndQuestion();
         baliseComplete = true;
+        return true;
     }
 }
 
