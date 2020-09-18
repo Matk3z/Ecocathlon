@@ -1,0 +1,3 @@
+Composant a acheter sur LCSC:
+esp8266 : https://lcsc.com/product-detail/WIFI-Modules_ESP-WROOM-02_C81770.html
+Power inductor 2.2uH 1210 : https://lcsc.com/product-detail/Power-Inductors_Murata-Electronics_LQH32CN2R2M53L_Murata-Electronics-LQH32CN2R2M53L_C98016.html
