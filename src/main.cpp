@@ -34,7 +34,7 @@ CRGB green = CRGB::Green;
 CRGB red = CRGB::Red;
 CRGB blue = CRGB::Blue;
 CRGB black = CRGB::Black;
-
+CRGB orange = CRGB::Orange;
 
 bool isAvailable;
 
@@ -46,8 +46,7 @@ String getKey = "19096661-1fb2-427e-9c55-c4839bcb3f02";
 bool ledTimer;
 bool winAnimation;
 
-bool sondageAnswered;
-int sondageData;
+int sondageAnswered;
 
 struct GameConfig_t {
     int status;
@@ -62,9 +61,9 @@ struct GameConfig_t {
     int QCM;
     int Trouver;
     int Ordre;
-
+    int Sondage;
     char user[40];
-    Tag detectedTags[30];
+    Tag detectedTags[25];
 
 } GameConfiguration;
 
@@ -82,8 +81,8 @@ char ssid[] = "k3z";
 char pass[] = "krOT9DjR4t2dyFDdDQJs";
 */
 
-char ssid[] = "LivingLab";
-char pass[] = "123fablab";
+char ssid[] = "ecocathlon";
+char pass[] = "ecocathlon";
 
 
 MFRC522 rfid(CS, RST);
@@ -142,7 +141,7 @@ void LedShowProgression(){
             baliseCompleted++;
         }
     }
-
+    Serial.print(baliseCompleted);
     float baliseCompletedPercent = ((float)baliseCompleted/(float)tagArraySize);
 
     int ledToLight = baliseCompletedPercent * ledNumber;
@@ -203,7 +202,7 @@ void WinLedAnimation(){
 
 void SetGameInfo()
 {
-    tagArraySize = GameConfiguration.QCM + GameConfiguration.Trouver + GameConfiguration.Ordre;
+    tagArraySize = GameConfiguration.QCM + GameConfiguration.Trouver + GameConfiguration.Ordre + GameConfiguration.Sondage;
     detectedTags = new Tag[tagArraySize];
     detectedTags = GameConfiguration.detectedTags;
 
@@ -212,6 +211,7 @@ void SetGameInfo()
 int WIFIInit(){
 
     WiFi.begin(ssid, pass);
+
     Serial.println();
     Serial.print("Connecting");
     for(int i = 0; i < 100;i++)
@@ -255,12 +255,8 @@ void SystemInit(){
     EEPROM.get(0, GameConfiguration);
 
     LedInit();
-
-    while (WIFIInit()  != LINKED_STATUS);
-    Serial.println("Successfully connected to the network");
     SPI.begin();
 	rfid.PCD_Init();
-
 
 }
 
@@ -310,12 +306,17 @@ Read the content of an NTAG213 and return the UID array
     Serial.print(detectedTag.tagType, HEX);
     Serial.println(detectedTag.tagData, HEX);
 
-    if (detectedTag.tagType >= 2 && detectedTag.tagData > 0){
+    if((detectedTag.tagType <=3 || detectedTag.tagType == 7) && GameConfiguration.status != ONGOING_STATUS){
+        detectedTag.tagID = 9999;
+        return detectedTag;
+    }
+
+    if ((detectedTag.tagType == 2 || detectedTag.tagType == 3 || detectedTag.tagType == 7) && detectedTag.tagData > 0){
         Serial.println("Answer tag detected");
         return detectedTag;
     }
 
-    if(detectedTag.tagType > 3){
+    if(detectedTag.tagType > 3 && detectedTag.tagType!=7){
         Serial.print("Admin tag detected");
         return detectedTag;
     }
@@ -376,12 +377,16 @@ int* GetTime(int type){
             tagMaxNumber = GameConfiguration.Ordre;
             break;
     }
-    for(int x = 0; x < tagMaxNumber;x++)
+    Serial.print("type :");
+    Serial.println(type);
+
+    for(int x = 1; x <= tagMaxNumber;x++)
     {
+        Serial.print(x);
         for (int y = 0; y < tagArraySize;y++){
             if(detectedTags[y].tagType == type && detectedTags[y].tagID == x){
                 DebugTagInfo(detectedTags[y]);
-                tagTime[detectedTags[y].tagID] = detectedTags[y].timeTocomplete;
+                tagTime[detectedTags[y].tagID - 1] = detectedTags[y].timeTocomplete;
                 break;
             }
         }
@@ -396,6 +401,8 @@ void DownloadGame(){
 Download the game data in json for the user from "http://68.183.211.90:80" 
 Deserialize the json into readable data and store the data in the EEPROM
 */
+    while (WIFIInit()  != LINKED_STATUS);
+    Serial.println("Successfully connected to the network");
     String user = GameConfiguration.user;
     Serial.print("Downloading game data");
     String StringData = httpsRequest("/api/config/" + String(GameConfiguration.user) + "?key="+ getKey + "&teamId=" + String(GameConfiguration.teamID));
@@ -413,19 +420,18 @@ Deserialize the json into readable data and store the data in the EEPROM
     GameConfiguration.QCM = doc["qcm"];
     GameConfiguration.Trouver = doc["trouver"];
     GameConfiguration.Ordre = doc["ordre"];
+    GameConfiguration.Sondage = doc ["sondage"];
     
-    if(doc["sondage"] == 0) sondageAnswered = true;
 
     strcpy(GameConfiguration.startTime, doc["time"]);
 
-    tagArraySize = GameConfiguration.QCM + GameConfiguration.Trouver + GameConfiguration.Ordre;
+    tagArraySize = GameConfiguration.QCM + GameConfiguration.Trouver + GameConfiguration.Ordre + GameConfiguration.Sondage;
 
-    detectedTags = new Tag[tagArraySize];
-    memcpy(GameConfiguration.detectedTags,detectedTags, sizeof(Tag) * tagArraySize);
-    
+    detectedTags = new Tag[tagArraySize];    
     for(int i = 0; i < tagArraySize; i++){
         detectedTags[i] = Tag();
     }
+    memcpy(GameConfiguration.detectedTags,detectedTags, sizeof(Tag) * tagArraySize);
 
     if(doc["uid"] == GameConfiguration.wifiUID || doc["password"] == GameConfiguration.wifiPass){
         strcpy(GameConfiguration.wifiUID, doc["uid"]);
@@ -433,6 +439,7 @@ Deserialize the json into readable data and store the data in the EEPROM
     }
 
     String teamColorData = doc["couleur"];
+    Serial.println(teamColorData);
     teamColorData.remove(0, 1);
     teamColorData = "0x" + teamColorData;
     long colorLong = strtol(teamColorData.c_str(), NULL, 16);
@@ -442,19 +449,28 @@ Deserialize the json into readable data and store the data in the EEPROM
     EEPROM.put(0, GameConfiguration);
     EEPROM.commit();
     SetStatus(DOWNLOADED_STATUS);
+    WiFi.disconnect();
     Serial.println("GameData set");
     Serial.printf("Trouver : %d QCM : %d Ordre : %d sondage : %d", GameConfiguration.Trouver, GameConfiguration.QCM, GameConfiguration.Ordre, sondage);
 
 }
 
 void DownloadAdminData(){
+    while (WIFIInit()  != LINKED_STATUS);
+    Serial.println("Successfully connected to the network");
+
     String stringData = httpsRequest("/api/getUser");
-    Serial.print(stringData);
-    
-    SetUser(stringData.c_str());
+    deserializeJson(doc, stringData);
+    String userTemp = doc["orga"];
+    GameConfiguration.teamID = doc["nbMedaillon"];
+    Serial.println(userTemp);
+    SetUser(userTemp.c_str());
 }
 
 void UploadResult(){
+    while (WIFIInit()  != LINKED_STATUS);
+    Serial.println("Successfully connected to the network");
+
     String json;
     DynamicJsonDocument result(2048);
 
@@ -485,12 +501,20 @@ void UploadResult(){
 
     JsonArray sondageArray = result.createNestedArray("sondage");
 
+    for(int x = 1; x<=GameConfiguration.Sondage;x++){
+        for(int y = 0; y < tagArraySize;y++){
+            if(detectedTags[y].tagType == 7 && detectedTags[y].tagID == x){
+                sondageArray.add(String(detectedTags[y].tagData));
+            }
+        }
+    }
+
     serializeJson(result, json);
     Serial.print(json);
     String url = "https://www.ecocathlon.fr/api/resultat/" + String(GameConfiguration.user) + "/?key=" + postKey + "&teamId=" + String(GameConfiguration.teamID);
     Serial.println(url);
 
-    http.begin(url, "B9 91 18 B0 E9 2A 74 73 CA 4F AD E1 75 89 F8 48 2B 84 9A 09");
+    http.begin(url, "74 FB 04 B3 BF 73 B3 29 3E 85 2F FE 7A 9B 0F 29 59 D5 4D DC");
     http.addHeader("Content-Type", "application/json");
     int code = http.POST(json);
     Serial.println(http.getString());
@@ -506,6 +530,8 @@ void UploadResult(){
 
 
     http.end();
+
+    WiFi.disconnect();
 }
 
 
@@ -514,19 +540,14 @@ void UploadResult(){
 void setup() {
   // put your setup code here, to run once:
     SystemInit();
-
-
-    if(GameConfiguration.status == LINKED_STATUS)
-        Serial.print("Esp started successfully");
-    GameConfiguration.teamID = 1;
+    SetLedColor(orange);
+    Serial.print("Esp started successfully");
     // SetUser("Mathias");
 
-    for(int i = 0; i < sizeof(GameConfiguration.user); i++){
-        Serial.print(GameConfiguration.user[i]);
-    }
 
     Serial.print(GameConfiguration.user);
-
+    Serial.print(GameConfiguration.teamID);
+    Serial.print(GameConfiguration.status);
 
     isAvailable = true;
 
@@ -538,8 +559,14 @@ void setup() {
     case USERSET_STATUS:
         DownloadGame();
         break;
+    case DOWNLOADED_STATUS:
+        SetLedColor(green);
     case ONGOING_STATUS:
         SetGameInfo();
+        LedShowProgression();
+        for(int i = 0; i < tagArraySize;i++){
+            DebugTagInfo(detectedTags[i]);
+        }
         break;
     default:
         break;
@@ -580,23 +607,7 @@ void loop() {
 
     FastLED.show();
     espTime = now();
-    if(GameConfiguration.detectedTags != detectedTags){
-        memcpy(GameConfiguration.detectedTags, detectedTags, sizeof(Tag) * tagArraySize);
-        SaveConfig();
-    }
 
-
-    if(CheckWin() && GameConfiguration.status == ONGOING_STATUS){
-        Serial.print("Win!");
-        WinLedAnimation();
-        if(sondageAnswered){
-            UploadResult();
-            SetStatus(USERSET_STATUS);
-            SetLedColor(green);
-            return;
-        }
-        delay(1000);
-    }
 
     if ( ! rfid.PICC_IsNewCardPresent())    return;
     if ( ! rfid.PICC_ReadCardSerial())      return;
@@ -697,11 +708,22 @@ void loop() {
         }
     case 4:
         // Start the game
+        if(GameConfiguration.status == DOWNLOADED_STATUS){
         Serial.println("Starting the game");
         SetStatus(ONGOING_STATUS);
         SetLedColor(GameConfiguration.teamColor);
         timer.AddTimer(millis(), 5000, *LedShowProgression);
         break;
+        }
+        else{
+            if(CheckWin() && GameConfiguration.status == ONGOING_STATUS){
+                UploadResult();
+                SetStatus(USERSET_STATUS);
+                SetLedColor(green);
+                return;
+                delay(1000);
+                }
+        }
     case 5:
         // Force the download of a new game
         SetStatus(USERSET_STATUS);
@@ -714,15 +736,19 @@ void loop() {
         ESP.restart();
         break;
     case 7:
-        // balise sondage
-        sondageAnswered = true;
-        sondageData = detectedTag.tagType;
+        detectedTags[tagDetectedNumber - 1].baliseComplete = true;
+        SetLedColor(green);
+        timer.AddTimer(millis(), 2000, *LedShowProgression);
+        Serial.println("sondage : %i");
         break;
     default:
         Serial.print("Invalid type");
         break;
     }
     
+    memcpy(GameConfiguration.detectedTags, detectedTags, sizeof(Tag) * tagArraySize);
+    SaveConfig();
+
     for(int i = 0; i < tagArraySize;i++){
             DebugTagInfo(detectedTags[i]);
     }
