@@ -1,6 +1,15 @@
 #include <Tag.h>
 #include <TimeLib.h>
 
+
+Tag::Tag(){
+    tagID = 0;
+    tagType = 0;
+    tagData = 0;
+    timeTocomplete = 0;
+
+}
+
 void Tag::StartQuestion(time_t startTime)
 {
 
@@ -27,6 +36,8 @@ bool Tag::TestQCM(int answerData)
         baliseComplete = true;
         return true;
     }
+
+    return false;
 }
 
 bool Tag::TestOrder(int answerData){

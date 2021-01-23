@@ -17,7 +17,7 @@ public:
     time_t QuestionStartTime;
     int timeTocomplete;
 
-
+    Tag();
     void StartQuestion(time_t startTime);
     void EndQuestion();
     bool TestQCM(int answerData);

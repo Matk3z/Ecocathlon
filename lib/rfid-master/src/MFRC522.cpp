@@ -1633,44 +1633,37 @@ void MFRC522::PICC_DumpMifareClassicSectorToSerial(Uid *uid,			///< Pointer to U
 /**
  * Dumps memory contents of a MIFARE Ultralight PICC.
  */
-void MFRC522::PICC_DumpMifareUltralightToSerial() {
+int * MFRC522::PICC_DumpMifareUltralightToSerial() {
 	MFRC522::StatusCode status;
 	byte byteCount;
 	byte buffer[18];
 	byte i;
-	
-	
-	Serial.println(F("Page  0  1  2  3"));
+	int n = 0;
+	static int var[8] = {1,2,3,4,5,6,7,8};
 	// Try the mpages of the original Ultralight. Ultralight C has more pages.
-	for (byte page = 0; page < 16; page +=4) { // Read returns data for 4 pages at a time.
+	for (byte page = 0; page < 8; page +=4) { // Read returns data for 4 pages at a time.
 		// Read pages
 		byteCount = sizeof(buffer);
 		status = MIFARE_Read(page, buffer, &byteCount);
 		if (status != STATUS_OK) {
 			Serial.print(F("MIFARE_Read() failed: "));
 			Serial.println(GetStatusCodeName(status));
-			break;
+			var[20] = 6;
+			return var; 
 		}
 		// Dump data
 		for (byte offset = 0; offset < 4; offset++) {
 			i = page + offset;
-			if(i < 10)
-				Serial.print(F("  ")); // Pad with spaces
-			else
-				Serial.print(F(" ")); // Pad with spaces
-			Serial.print(i);
-			Serial.print(F("  "));
 			for (byte index = 0; index < 4; index++) {
 				i = 4 * offset + index;
-				if(buffer[i] < 0x10)
-					Serial.print(F(" 0"));
-				else
-					Serial.print(F(" "));
-				Serial.print(buffer[i], HEX);
+				
+				var[n] = buffer[i];
+				n += 1;
 			}
-			Serial.println();
+
 		}
-	}
+	} 
+	return var;
 } // End PICC_DumpMifareUltralightToSerial()
 
 /**
