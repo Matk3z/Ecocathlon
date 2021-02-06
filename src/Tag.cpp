@@ -19,7 +19,13 @@ void Tag::StartQuestion(time_t startTime)
 
     OrderIndex = 1;
     QuestionHasStarted = true;
-    QuestionStartTime = startTime;
+    secStart = minute(startTime) * 60 + second(startTime);
+}
+
+int Tag::GetTimeToComplete(time_t endTime){
+    secEnd = minute(endTime) * 60 + second(endTime);
+    timeTocomplete = secEnd - secStart;
+    return timeTocomplete;
 }
 
 void Tag::EndQuestion(){

@@ -68,6 +68,7 @@ struct GameConfig_t {
     int Ordre;
     int Sondage;
     char user[40];
+    Tag *tagQuestionStarted = NULL;
     Tag detectedTags[25];
 
 } GameConfiguration;
@@ -172,6 +173,7 @@ String httpsPostRequest(String url, String data){
     int contentLen = sizeof(data);
   	client.print(String("POST ") + url + " HTTP/1.1\r\n" +
                 "Host: " + host + "\r\n" +
+                "method : POST" + "\r\n" +
                 "Content-Type : application/json\r\n" +
                 "Content-lenght : " + contentLen + "\r\n" +
                 data + "\r\n" + 
@@ -184,7 +186,7 @@ String httpsPostRequest(String url, String data){
       	break;
    		}
   	}
-	String line = client.readStringUntil('\n');
+	String line = client.readStringUntil('\r\n\r\n');
 	return line;
 }
 
@@ -282,11 +284,10 @@ void WinLedAnimation(){
 void rainbow(){
 
 	winAnimation = true;
-
     if(winLedLit == 8) winLedLit = 0;
-
+    winLedLit++;
   	for (int  i = 0; i < winLedLit; i++){
-        leds[i] = CHSV(i * (360 / 8), SATURATION, BRIGHTNESS);
+        leds[i] = CHSV(i * (255 / 8), SATURATION, BRIGHTNESS);
       }
     for (int  i = winLedLit; i <= NUM_LEDS;i++){
         leds[i] = black;
@@ -343,7 +344,7 @@ void SystemInit(){
     Serial.begin(115200);
     EEPROM.begin(1024);
 
-    if(EEPROM.read(0) == 0){
+    if(EEPROM.read(0) == 0 || EEPROM.read(0) == 255){
         SetStatus(HARDRESET_STATUS);
         detectedTags = new Tag[1];
         memcpy(GameConfiguration.detectedTags,detectedTags, sizeof(Tag) * 1);
@@ -561,6 +562,7 @@ void DownloadAdminData(){
     deserializeJson(doc, stringData);
     String userTemp = doc["orga"];
     GameConfiguration.teamID = doc["nbMedaillon"];
+    GameConfiguration.teamID = 2;
     Serial.println(userTemp);
     SetUser(userTemp.c_str());
 }
@@ -624,24 +626,7 @@ void setup() {
     SystemInit();
     SetLedColor(orange);
     Serial.print("Esp started successfully");
-    SetUser("Mathias");
-    GameConfiguration.teamID = 1;
-    GameConfiguration.teamColor =230;
-    // SaveConfig();
-    // SetStatus(DOWNLOADED_STATUS);
-    GameConfiguration.status = DOWNLOADED_STATUS;
 
-    GameConfiguration.Trouver = 1;
-    GameConfiguration.QCM = 1;
-    GameConfiguration.Ordre = 1;
-
-    tagArraySize = 3;
-    detectedTags = new Tag[tagArraySize];
-
-    for(int i = 0; i < tagArraySize; i++){
-        detectedTags[i] = Tag();
-    }
-    Serial.print("foo");
 
     Serial.print(GameConfiguration.user);
     Serial.print(GameConfiguration.teamID);
@@ -699,8 +684,11 @@ void loop() {
     FastLED.show();
     espTime = now();
 
-    if(CheckWin() && !winAnimation) {
+    if(CheckWin() && !winAnimation && GameConfiguration.status == ONGOING_STATUS) {
         Serial.print("win xd");
+        for(int i = 0; i < tagArraySize;i++){
+            DebugTagInfo(detectedTags[i]);
+        }
         rainbow();
     }
 
@@ -736,25 +724,27 @@ void loop() {
 
             Serial.println("Question QCM commencée");
             detectedTags[tagDetectedNumber - 1].StartQuestion(espTime);
+            detectedTags[tagDetectedNumber - 1].secStart = minute(espTime) * 60 + second(espTime);
             isAvailable = false;
             SetLedColor(blue);
             timer.AddTimer(millis(), 2000, *LedShowProgression); 
-            tagQuestionStarted = &detectedTags[tagDetectedNumber - 1];
+            GameConfiguration.tagQuestionStarted = &detectedTags[tagDetectedNumber - 1];
             break;
         }else if (detectedTag.tagData > 0)
         {
-            if(tagQuestionStarted == NULL){
+            if(GameConfiguration.tagQuestionStarted == NULL){
                 Serial.print("Aucune question n'a été commencée");
                 break;
             }
-            if(tagQuestionStarted->TestQCM(detectedTag.tagData)){
+            if(GameConfiguration.tagQuestionStarted->TestQCM(detectedTag.tagData)){
                     // Question reussi
                 isAvailable = false;
                 SetLedColor(green);
-                timer.AddTimer(millis(), 2000, *LedShowProgression);    
-                tagQuestionStarted->timeTocomplete = (minute(espTime) * 60 + second(espTime)) - (minute(tagQuestionStarted->QuestionStartTime) * 60 + second(tagQuestionStarted->QuestionStartTime));
-                Serial.printf("question réussi en %d", tagQuestionStarted->timeTocomplete);
-                tagQuestionStarted = NULL;
+                timer.AddTimer(millis(), 2000, *LedShowProgression);
+                Serial.println(second(GameConfiguration.tagQuestionStarted->GetTimeToComplete(espTime)));
+                Serial.println(GameConfiguration.tagQuestionStarted->secStart);    
+                Serial.printf("question réussi en %d", GameConfiguration.tagQuestionStarted->timeTocomplete);
+                GameConfiguration.tagQuestionStarted = NULL;
             }
             else{
                 isAvailable = false;
@@ -766,31 +756,32 @@ void loop() {
     case 3:
         if(detectedTag.tagData == 0){
             Serial.println("Question ordre commencé");
+            Serial.println("");
             detectedTags[tagDetectedNumber - 1].StartQuestion(espTime);
+            detectedTags[tagDetectedNumber - 1].secStart = minute(espTime) * 60 + second(espTime);
             isAvailable = false;
             SetLedColor(blue);
             timer.AddTimer(millis(), 2000, *LedShowProgression); 
-            tagQuestionStarted = &detectedTags[tagDetectedNumber - 1];
+            GameConfiguration.tagQuestionStarted = &detectedTags[tagDetectedNumber - 1];
             break;
         }else if (detectedTag.tagData > 0)
         {
-            if(tagQuestionStarted == NULL){
+            if(GameConfiguration.tagQuestionStarted == NULL){
                 Serial.println("Aucune question n'a été commencée");
                 isAvailable = false;
                 SetLedColor(red);
                 timer.AddTimer(millis(), 2000, *LedShowProgression);
                 break;
             }
-            if(tagQuestionStarted->QuestionHasStarted && tagQuestionStarted->TestOrder(detectedTag.tagData)){
+            if(GameConfiguration.tagQuestionStarted->QuestionHasStarted && GameConfiguration.tagQuestionStarted->TestOrder(detectedTag.tagData)){
                 // Question reussi
                 Serial.println("bon ordre");
                 isAvailable = false;
                 SetLedColor(green);
                 timer.AddTimer(millis(), 2000, *LedShowProgression);
-                if(tagQuestionStarted->baliseComplete){
-                    tagQuestionStarted->timeTocomplete = (minute(espTime) * 60 + second(espTime)) - (minute(tagQuestionStarted->QuestionStartTime) * 60 + second(tagQuestionStarted->QuestionStartTime));
-                    Serial.printf("question réussi en %d secondes\n", tagQuestionStarted->timeTocomplete);
-                    tagQuestionStarted = NULL;
+                if(GameConfiguration.tagQuestionStarted->baliseComplete){
+                    Serial.printf("question réussi en %d secondes\n", GameConfiguration.tagQuestionStarted->timeTocomplete);
+                    GameConfiguration.tagQuestionStarted = NULL;
                 }
             }
             else{
