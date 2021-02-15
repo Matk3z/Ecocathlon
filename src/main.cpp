@@ -94,7 +94,7 @@ char pass[] = "ecocathlon";
 const char* host = "ecocathlon.fr";
 const int httpsPort = 443;
 
-const char fingerprint[] PROGMEM = "0B 11 CE FE 52 2B B6 5A E2 4D CA BC 34 0F 0B AD ED DE 5F EB";
+const char fingerprint[] PROGMEM = "C4:3C:BA:9D:89:60:8F:39:3C:53:7B:5B:D8:66:6B:51:D7:77:29:BD";
                         
 MFRC522 rfid(CS, RST);
 
@@ -170,15 +170,19 @@ String httpsPostRequest(String url, String data){
 	  }
   	Serial.print("requesting URL: ");
   	Serial.println(url);
-    int contentLen = sizeof(data);
+    int contentLen = data.length();
+    Serial.println(String("POST ") + url + " HTTP/1.1\r\n" +
+                "Host: " + host + "\r\n" +
+                "Content-Type: application/json; charset=utf-8\r\n" +
+                "Content-Lenght: " + String(contentLen) + "\r\n\r\n" +
+                data);
+
   	client.print(String("POST ") + url + " HTTP/1.1\r\n" +
                 "Host: " + host + "\r\n" +
-                "method : POST" + "\r\n" +
-                "Content-Type : application/json\r\n" +
-                "Content-lenght : " + contentLen + "\r\n" +
-                data + "\r\n" + 
-                "Connection: close\r\n\r\n");
-
+                "Content-Type : application/json; charset=utf-8\r\n" +
+                "Content-Lenght : " + String(contentLen) + "\r\n\r\n" +
+                data + "\r\n\r\n");
+    
     while (client.connected()) {
     String line = client.readStringUntil('\n');
     if (line == "\r") {
@@ -522,7 +526,7 @@ Deserialize the json into readable data and store the data in the EEPROM
     
 
     strcpy(GameConfiguration.startTime, doc["time"]);
-
+    Serial.print(GameConfiguration.startTime);
     tagArraySize = GameConfiguration.QCM + GameConfiguration.Trouver + GameConfiguration.Ordre + GameConfiguration.Sondage;
 
     detectedTags = new Tag[tagArraySize];    
@@ -611,8 +615,10 @@ void UploadResult(){
 
     serializeJson(result, json);
     Serial.print(json);
-
-    Serial.print(httpsPostRequest("https://www.ecocathlon.fr/api/resultat/" + String(GameConfiguration.user) + "/?key=" + postKey + "&teamId=" + String(GameConfiguration.teamID), json));
+    strcpy(GameConfiguration.user, "Mathias");
+    GameConfiguration.teamID = 1;
+    json = "{\"equipe\":0,\"qcm\":[\"1\"],\"ordre\":[\"2\"],\"trouver\":[\"3\"],\"repTt\":15,\"tempsTt\":\"17:22:10\",\"sondage\":[]}";
+    Serial.print(httpsPostRequest("/api/resultat/" + String(GameConfiguration.user) + "?key=" + postKey + "&teamId=" + String(GameConfiguration.teamID), json));
     http.end();
 
     WiFi.disconnect();
@@ -626,8 +632,9 @@ void setup() {
     SystemInit();
     SetLedColor(orange);
     Serial.print("Esp started successfully");
-
-
+    /*
+    SetUser("Mathias");
+    */
     Serial.print(GameConfiguration.user);
     Serial.print(GameConfiguration.teamID);
     Serial.print(GameConfiguration.status);
@@ -636,7 +643,6 @@ void setup() {
     }
     memcpy(GameConfiguration.detectedTags, detectedTags, sizeof(Tag) * tagArraySize);
     isAvailable = true;
-
     switch (GameConfiguration.status)
     {
     case HARDRESET_STATUS:
@@ -801,15 +807,7 @@ void loop() {
         delay(500);
         break;
         }
-        else{
-            if(CheckWin() && GameConfiguration.status == ONGOING_STATUS){
-                UploadResult();
-                SetStatus(USERSET_STATUS);
-                SetLedColor(green);
-                return;
-                delay(1000);
-                }
-        }
+
     case 5:
         // Force the download of a new game
         SetStatus(USERSET_STATUS);
@@ -827,6 +825,14 @@ void loop() {
         timer.AddTimer(millis(), 2000, *LedShowProgression);
         Serial.println("sondage : %i");
         break;
+    case 8:
+        if(CheckWin() && GameConfiguration.status == ONGOING_STATUS){
+            UploadResult();
+            SetStatus(USERSET_STATUS);
+            SetLedColor(green);
+            return;
+            delay(1000);
+        }
     default:
         Serial.print("Invalid type");
         break;
