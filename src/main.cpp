@@ -496,7 +496,16 @@ int* GetTime(int type){
 
     return tagTime;
 }
+void StartGame(){
 
+    if(GameConfiguration.status == DOWNLOADED_STATUS){
+        Serial.println("Starting the game");
+        SetStatus(ONGOING_STATUS);
+        SetLedColor(GameConfiguration.teamColor);
+        timer.AddTimer(millis(), 5000, *LedShowProgression);
+        delay(500);
+    }
+}
 void DownloadGame(){
 
 /*
@@ -566,7 +575,6 @@ void DownloadAdminData(){
     deserializeJson(doc, stringData);
     String userTemp = doc["orga"];
     GameConfiguration.teamID = doc["nbMedaillon"];
-    GameConfiguration.teamID = 2;
     Serial.println(userTemp);
     SetUser(userTemp.c_str());
 }
@@ -616,7 +624,6 @@ void UploadResult(){
     serializeJson(result, json);
     Serial.print(json);
     strcpy(GameConfiguration.user, "Mathias");
-    GameConfiguration.teamID = 1;
     json = "{\"equipe\":0,\"qcm\":[\"1\"],\"ordre\":[\"2\"],\"trouver\":[\"3\"],\"repTt\":15,\"tempsTt\":\"17:22:10\",\"sondage\":[]}";
     Serial.print(httpsPostRequest("/api/resultat/" + String(GameConfiguration.user) + "?key=" + postKey + "&teamId=" + String(GameConfiguration.teamID), json));
     http.end();
@@ -632,17 +639,16 @@ void setup() {
     SystemInit();
     SetLedColor(orange);
     Serial.print("Esp started successfully");
-    /*
-    SetUser("Mathias");
-    */
     Serial.print(GameConfiguration.user);
     Serial.print(GameConfiguration.teamID);
     Serial.print(GameConfiguration.status);
+
     for(int i = 0; i < tagArraySize;i++){
         DebugTagInfo(detectedTags[i]);
     }
     memcpy(GameConfiguration.detectedTags, detectedTags, sizeof(Tag) * tagArraySize);
     isAvailable = true;
+
     switch (GameConfiguration.status)
     {
     case HARDRESET_STATUS:
@@ -700,14 +706,13 @@ void loop() {
 
     if ( ! rfid.PICC_IsNewCardPresent())    return;
     if ( ! rfid.PICC_ReadCardSerial())      return;
-
+    
     Tag detectedTag = ReadNtagContent();
 
     if(detectedTag.tagID == 9999){
         delay(1000);
         return;
     }
-
 
 
     if(GameConfiguration.status != ONGOING_STATUS && detectedTag.tagType != 4 && detectedTag.tagType != 6) return;
@@ -800,14 +805,18 @@ void loop() {
     case 4:
         // Start the game
         if(GameConfiguration.status == DOWNLOADED_STATUS){
-        Serial.println("Starting the game");
-        SetStatus(ONGOING_STATUS);
-        SetLedColor(GameConfiguration.teamColor);
-        timer.AddTimer(millis(), 5000, *LedShowProgression);
-        delay(500);
+            StartGame();
         break;
         }
-
+        else{
+            if(CheckWin() && GameConfiguration.status == ONGOING_STATUS){
+                    UploadResult();
+                    SetStatus(USERSET_STATUS);
+                    SetLedColor(green);
+                    return;
+                    delay(1000);
+                }
+        }
     case 5:
         // Force the download of a new game
         SetStatus(USERSET_STATUS);
@@ -825,14 +834,7 @@ void loop() {
         timer.AddTimer(millis(), 2000, *LedShowProgression);
         Serial.println("sondage : %i");
         break;
-    case 8:
-        if(CheckWin() && GameConfiguration.status == ONGOING_STATUS){
-            UploadResult();
-            SetStatus(USERSET_STATUS);
-            SetLedColor(green);
-            return;
-            delay(1000);
-        }
+
     default:
         Serial.print("Invalid type");
         break;
