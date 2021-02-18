@@ -570,7 +570,7 @@ void DownloadAdminData(){
     while (WIFIInit()  != LINKED_STATUS);
     Serial.println("Successfully connected to the network");
 
-    String stringData = httpsGetRequest("/api/seeUser");
+    String stringData = httpsGetRequest("/api/getUser");
     // testhttps();
     deserializeJson(doc, stringData);
     String userTemp = doc["orga"];
