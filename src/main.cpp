@@ -83,11 +83,6 @@ int tagArraySize;
 
 int QuestionType;
 // int status = WL_IDLE_STATUS;
-/*
-char ssid[] = "k3z";
-char pass[] = "krOT9DjR4t2dyFDdDQJs";
-*/
-
 char ssid[] = "ecocathlon";
 char pass[] = "ecocathlon";
 
