@@ -89,7 +89,7 @@ char pass[] = "ecocathlon";
 const char* host = "ecocathlon.fr";
 const int httpsPort = 443;
 
-const char fingerprint[] PROGMEM = "C4:3C:BA:9D:89:60:8F:39:3C:53:7B:5B:D8:66:6B:51:D7:77:29:BD";
+const char fingerprint[] PROGMEM = "A6:3A:67:83:75:C7:72:A5:73:45:FB:BA:DC:48:80:E9:F8:75:62:6B";
                         
 MFRC522 rfid(CS, RST);
 
@@ -367,15 +367,15 @@ Tag ReadNtagContent(){
 /*
 Read the content of an NTAG213 and return the UID array
 */
-
+    /*
     byte PSWBuff[] = {0xFF, 0xFF, 0xFF, 0xFF}; //32 bit PassWord default FFFFFFFF
     byte pACK[] = {0, 0}; //16 bit PassWord ACK returned by the NFCtag
-    /*
+    
     Serial.print("Auth: ");
     Serial.println(rfid.PCD_NTAG216_AUTH(&PSWBuff[0], pACK)); //Request Authentification if return STATUS_OK we are good
 
     
-    byte WBuff[] = {0x00, 0x04, 0x00, 0x00};
+    byte WBuff[] = {0x01, 0x03, 0x03, 0x00};
     byte RBuff[18]; 
     
     Serial.print("CHG BLK: ");
@@ -564,7 +564,7 @@ void DownloadAdminData(){
     while (WIFIInit()  != LINKED_STATUS);
     Serial.println("Successfully connected to the network");
 
-    String stringData = httpsGetRequest("/api/getUser");
+    String stringData = httpsGetRequest("/api/geetUser");
     if(stringData == "0"){
         Serial.print("HTTP request failed");
         SetLedColor(red);
@@ -624,7 +624,6 @@ void UploadResult(){
 
     serializeJson(result, json);
     Serial.print(json);
-    strcpy(GameConfiguration.user, "Mathias");
     //json = "{\"equipe\":2,\"qcm\":[\"1\"],\"ordre\":[\"2\"],\"trouver\":[\"3\"],\"repTt\":15,\"tempsTt\":\"17:22:10\",\"sondage\":[]}";
     Serial.print(httpsPostRequest("/api/resultat/" + String(GameConfiguration.user) + "/?key=" + postKey + "&teamId=" + String(GameConfiguration.teamID), json));
     http.end();
