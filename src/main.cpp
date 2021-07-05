@@ -40,6 +40,7 @@ CRGB red = CRGB::Red;
 CRGB blue = CRGB::Blue;
 CRGB black = CRGB::Black;
 CRGB orange = CRGB::Orange;
+CRGB white = CRGB::White;
 int winLedLit = 0;
 bool isAvailable;
 
@@ -50,16 +51,19 @@ String getKey = "19096661-1fb2-427e-9c55-c4839bcb3f02";
 
 bool ledTimer;
 bool winAnimation = false;
+bool isLit = false;
+int idleAnimationCount = 0;
 
 int sondageAnswered;
 
 struct GameConfig_t {
     int status;
-    int teamID;
     bool gameStarted;
+    String teamColorString;
     int teamColor;
     char startTime[7];
- 
+    char fingerPrint[59];
+
     char wifiUID[20];
     char wifiPass[20];
 
@@ -83,13 +87,13 @@ int tagArraySize;
 
 int QuestionType;
 // int status = WL_IDLE_STATUS;
-char ssid[] = "ecocathlon";
-char pass[] = "ecocathlon";
+char ssid[] = "LivingLab";
+char pass[] = "123fablab";
 
 const char* host = "ecocathlon.fr";
 const int httpsPort = 443;
 
-const char fingerprint[] PROGMEM = "A6:3A:67:83:75:C7:72:A5:73:45:FB:BA:DC:48:80:E9:F8:75:62:6B";
+const char fingerprint[] PROGMEM = "03:8D:B4:F2:13:E0:79:E8:AC:9F:8F:99:43:18:ED:30:9B:86:AE:DD";
                         
 MFRC522 rfid(CS, RST);
 
@@ -116,98 +120,6 @@ void SetStatus(int status)
 void DebugTagInfo(Tag tag){
     Serial.printf("id : %d    type : %d    isComplete : %d    timeToComplete : %d\n", tag.tagID, tag.tagType, tag.baliseComplete, tag.timeTocomplete);
 }
-
-
-
-String httpsGetRequest(String url){
-	/* connect to wifi */
-
-	WiFiClientSecure client;
-  	Serial.print("connecting to ");
-  	Serial.println(host);
-
-  	Serial.printf("Using fingerprint '%s'\n", fingerprint);
-  	client.setFingerprint(fingerprint);
-
-  	if (!client.connect(host, httpsPort)) {
-    	Serial.println("connection failed");
-    	return "connection error";
-	  }
-  	Serial.print("requesting URL: ");
-  	Serial.println(url);
-
-  	client.print(String("GET ") + url + " HTTP/1.1\r\n" +
-               "Host: " + host + "\r\n" +
-               "Connection: close\r\n\r\n");
-
-	while (client.connected()) {
-    String line = client.readStringUntil('\n');
-    if (line == "\r") {
-      	Serial.println("headers received");
-      	break;
-   		}
-  	}
-    String buffer;
-    while (client.available()) {
-      char c = client.read();
-      Serial.write(c);
-      buffer += c;
-    }
-    if (buffer[0] != '{'){
-        return "0";
-    }
-
-	return buffer;	
-}
-
-String httpsPostRequest(String url, String data){
-
-    WiFiClientSecure client;
-  	Serial.print("connecting to ");
-  	Serial.println(host);
-
-  	Serial.printf("Using fingerprint '%s'\n", fingerprint);
-  	client.setFingerprint(fingerprint);
-
-  	if (!client.connect(host, httpsPort)) {
-    	Serial.println("connection failed");
-    	return "connection error";
-	  }
-      
-  	Serial.print("requesting URL: ");
-  	Serial.println(url);
-    int contentLen = data.length();
-
-    Serial.println(String("POST ")  + " HTTP/1.1\n" +
-                "Host: " + host + "\n" +
-                "Content-Type : application/json;charset=UTF-8\n" +
-                "Content-Lenght : " + String(contentLen) + "\n\n" + data + "\n");
-
-    client.println("POST " + url + " HTTP/1.1");
-    client.println("Host: ecocathlon.fr");
-    client.println("Cache-Control: no-cache");
-    client.println("Content-Type: application/json");
-    client.print("Content-Length: ");
-    client.println(data.length());
-    client.println();
-    client.println(data);
-    
-    while (client.connected()) {
-    String line = client.readStringUntil('\n');
-    if (line == "\r") {
-      	Serial.println("headers received");
-      	break;
-   		}
-  	}
-    String buffer;
-    while (client.available()) {
-      char c = client.read();
-      Serial.write(c);
-      buffer += c;
-    }
-	return "0";
-}
-
 
 void LedShowProgression(){
     int baliseCompleted = 0;
@@ -254,6 +166,149 @@ void SetLedColor(CRGB color){
     }
 }
 
+
+int WIFIInit(){
+
+    WiFi.begin(ssid, pass);
+
+    Serial.println();
+    Serial.print("Connecting");
+    for(int i = 0; i < 100;i++)
+    {
+        Serial.print(".");
+        LedWifiConnection();
+        if(WiFi.status() == WL_CONNECTED)
+        {
+            SetLedColor(green);
+            return LINKED_STATUS;
+            
+        }
+        delay(1000);
+    }
+
+    return BUG_STATUS;
+}
+
+void DownloadNewCertificate(){
+
+    String certificateHost = "54.36.98.8";
+
+    while (WIFIInit()  != LINKED_STATUS);
+    Serial.println("Successfully connected to the network");
+
+    WiFiClient certificateClient;
+    HTTPClient http;
+
+    http.begin(certificateClient, "http://54.36.98.8:3500/");
+    int httpCode = http.GET();
+    Serial.print(httpCode);
+
+    String payload = http.getString();
+
+    Serial.print(payload);
+    strcpy(GameConfiguration.fingerPrint, payload.c_str());
+    SaveConfig();
+    Serial.print("New certificate is" + String(GameConfiguration.fingerPrint));
+
+    certificateClient.stop();
+
+}
+
+String httpsGetRequest(String url){
+	/* connect to wifi */
+
+	WiFiClientSecure client;
+  	Serial.print("connecting to ");
+  	Serial.println(host);
+
+  	Serial.printf("Using fingerprint '%s'\n", GameConfiguration.fingerPrint);
+  	client.setFingerprint(GameConfiguration.fingerPrint);
+
+  	if (!client.connect(host, httpsPort)) {
+    	Serial.println("connection failed");
+        client.stop();
+        DownloadNewCertificate();
+    	return "0";
+	  }
+  	Serial.print("requesting URL: ");
+  	Serial.println(url);
+
+  	client.print(String("GET ") + url + " HTTP/1.1\r\n" +
+               "Host: " + host + "\r\n" +
+               "Connection: close\r\n\r\n");
+
+	while (client.connected()) {
+    String line = client.readStringUntil('\n');
+    if (line == "\r") {
+      	Serial.println("headers received");
+      	break;
+   		}
+  	}
+    String buffer;
+    while (client.available()) {
+      char c = client.read();
+      Serial.write(c);
+      buffer += c;
+    }
+    if (buffer[0] != '{'){
+        return "0";
+    }
+    client.stop();
+	return buffer;	
+}
+
+String httpsPostRequest(String url, String data){
+
+    WiFiClientSecure client;
+  	Serial.print("connecting to ");
+  	Serial.println(host);
+
+  	Serial.printf("Using fingerprint '%s'\n", fingerprint);
+  	client.setFingerprint(fingerprint);
+
+  	if (!client.connect(host, httpsPort)) {
+    	Serial.println("connection failed");
+    	return "connection error";
+	  }
+      
+  	Serial.print("requesting URL: ");
+  	Serial.println(url);
+    int contentLen = data.length();
+
+    Serial.println(String("POST ")  + " HTTP/1.1\n" +
+                "Host: " + host + "\n" +
+                "Content-Type : application/json;charset=UTF-8\n" +
+                "Content-Lenght : " + String(contentLen) + "\n\n" + data + "\n");
+
+    client.println("POST " + url + " HTTP/1.1");
+    client.println("Host: ecocathlon.fr");
+    client.println("Cache-Control: no-cache");
+    client.println("Connection: close");
+    client.println("Content-Type: application/json");
+    client.print("Content-Length: ");
+    client.println(data.length());
+    client.println();
+    client.println(data);
+    
+    while (client.connected()) {
+    String line = client.readStringUntil('\n');
+    if (line == "\r") {
+      	Serial.println("headers received");
+      	break;
+   		}
+  	}
+    String buffer;
+    while (client.available()) {
+      char c = client.read();
+      Serial.write(c);
+      buffer += c;
+    }
+	return "0";
+}
+
+
+
+
 /*
 void WinLedAnimation(){
 
@@ -294,6 +349,26 @@ void rainbow(){
     timer.AddTimer(millis(), 750, rainbow);
 }
 
+void idleAnimation(){
+    idleAnimationCount++;
+    if(isLit)
+    {    
+        if(idleAnimationCount == 14){
+            leds[0] = black;
+            Serial.print(idleAnimationCount);
+            idleAnimationCount = 0;
+        }
+        else{
+            leds[0] = white;
+        }
+    }
+    else{
+
+        leds[0] = black;
+    }
+    isLit = !isLit;
+    timer.AddTimer(millis(),750, idleAnimation);
+}
 
 void SetGameInfo()
 {
@@ -303,27 +378,7 @@ void SetGameInfo()
 
 }
 
-int WIFIInit(){
 
-    WiFi.begin(ssid, pass);
-
-    Serial.println();
-    Serial.print("Connecting");
-    for(int i = 0; i < 100;i++)
-    {
-        Serial.print(".");
-        LedWifiConnection();
-        if(WiFi.status() == WL_CONNECTED)
-        {
-            SetLedColor(green);
-            return LINKED_STATUS;
-            
-        }
-        delay(1000);
-    }
-
-    return BUG_STATUS;
-}
 
 void LedInit(){
 
@@ -348,7 +403,7 @@ void SystemInit(){
         SaveConfig();
     }
     EEPROM.get(0, GameConfiguration);
-
+    WiFi.persistent(false); 
     LedInit();
     SPI.begin();
 	rfid.PCD_Init();
@@ -360,22 +415,22 @@ void ResetGameConfig(){
     strcpy(GameConfiguration.wifiPass, "ecocathlon");
 
     SetStatus(USERSET_STATUS);
-    ESP.restart();
+    ESP.reset();
 }
 
 Tag ReadNtagContent(){
 /*
 Read the content of an NTAG213 and return the UID array
 */
-    /*
+
     byte PSWBuff[] = {0xFF, 0xFF, 0xFF, 0xFF}; //32 bit PassWord default FFFFFFFF
     byte pACK[] = {0, 0}; //16 bit PassWord ACK returned by the NFCtag
     
     Serial.print("Auth: ");
     Serial.println(rfid.PCD_NTAG216_AUTH(&PSWBuff[0], pACK)); //Request Authentification if return STATUS_OK we are good
 
-    
-    byte WBuff[] = {0x01, 0x03, 0x03, 0x00};
+    /*
+    byte WBuff[] = {0x01, 0x06, 0x01, 0x00};
     byte RBuff[18]; 
     
     Serial.print("CHG BLK: ");
@@ -500,7 +555,7 @@ void StartGame(){
         delay(500);
     }
 }
-void DownloadGame(){
+int DownloadGame(){
 
 /*
 Download the game data in json for the user from "http://68.183.211.90:80" 
@@ -508,13 +563,18 @@ Deserialize the json into readable data and store the data in the EEPROM
 */
     while (WIFIInit()  != LINKED_STATUS);
     Serial.println("Successfully connected to the network");
-    String user = GameConfiguration.user;
     Serial.print("Downloading game data");
-    String StringData = httpsGetRequest("/api/config/" + String(GameConfiguration.user) + "?key="+ getKey + "&teamId=" + String(GameConfiguration.teamID));
+    Serial.print("/api/config/" + String(GameConfiguration.user) + "?key="+ getKey);
+    String StringData = httpsGetRequest("/api/config/" + String(GameConfiguration.user) + "?key="+ getKey);
     if(StringData == "0"){
-        Serial.print("HTTP request failed");
-        SetLedColor(red);
-        return;
+        //retrying to pull data from server
+        StringData = httpsGetRequest("/api/config/" + String(GameConfiguration.user) + "?key="+ getKey);
+        if(StringData == "0"){
+            Serial.print("HTTP request failed");
+            SetLedColor(red);
+            return 0 ;
+        }
+
     }
     deserializeJson(doc, StringData.c_str());
     
@@ -544,40 +604,57 @@ Deserialize the json into readable data and store the data in the EEPROM
     }
 
     String teamColorData = doc["couleur"];
+    GameConfiguration.teamColorString = teamColorData;
     Serial.println(teamColorData);
     teamColorData.remove(0, 1);
     teamColorData = "0x" + teamColorData;
     long colorLong = strtol(teamColorData.c_str(), NULL, 16);
     GameConfiguration.teamColor = colorLong;
     teamColorData = colorLong;
+
     int sondage = doc["sondage"];
+
     EEPROM.put(0, GameConfiguration);
     EEPROM.commit();
+
     SetStatus(DOWNLOADED_STATUS);
+
     WiFi.disconnect();
+    doc.clear();
+
     Serial.println("GameData set");
     Serial.printf("Trouver : %d QCM : %d Ordre : %d sondage : %d", GameConfiguration.Trouver, GameConfiguration.QCM, GameConfiguration.Ordre, sondage);
+    return 1;
 
 }
 
-void DownloadAdminData(){
+
+
+int DownloadAdminData(){
     while (WIFIInit()  != LINKED_STATUS);
     Serial.println("Successfully connected to the network");
 
-    String stringData = httpsGetRequest("/api/geetUser");
+    String stringData = httpsGetRequest("/api/seeUser");
     if(stringData == "0"){
-        Serial.print("HTTP request failed");
-        SetLedColor(red);
-        WiFi.disconnect();
-        return;
+        // retry to pull data with a new certificate
+        Serial.print("retrying to pull data");
+        stringData = httpsGetRequest("/api/seeUser");
+        if(stringData == "0"){
+            Serial.print("HTTP request failed");
+            SetLedColor(red);
+            WiFi.disconnect();
+            return 0;
+        }
+
     }
     WiFi.disconnect();
-    // testhttps();
+
     deserializeJson(doc, stringData);
     String userTemp = doc["orga"];
-    GameConfiguration.teamID = doc["nbMedaillon"];
     Serial.println(userTemp);
     SetUser(userTemp.c_str());
+    doc.clear();
+    return 1;
 }
 
 void UploadResult(){
@@ -587,7 +664,6 @@ void UploadResult(){
     String json;
     DynamicJsonDocument result(2048);
 
-    result["equipe"] = GameConfiguration.teamID;
 
     JsonArray QCMArray = result.createNestedArray("qcm");
 
@@ -612,6 +688,8 @@ void UploadResult(){
 
     result["tempsTt"] = GameConfiguration.startTime;
 
+    result["couleur"] = GameConfiguration.teamColorString;
+
     JsonArray sondageArray = result.createNestedArray("sondage");
 
     for(int x = 1; x<=GameConfiguration.Sondage;x++){
@@ -624,11 +702,12 @@ void UploadResult(){
 
     serializeJson(result, json);
     Serial.print(json);
+    strcpy(GameConfiguration.user, "Mathias");
     //json = "{\"equipe\":2,\"qcm\":[\"1\"],\"ordre\":[\"2\"],\"trouver\":[\"3\"],\"repTt\":15,\"tempsTt\":\"17:22:10\",\"sondage\":[]}";
-    Serial.print(httpsPostRequest("/api/resultat/" + String(GameConfiguration.user) + "/?key=" + postKey + "&teamId=" + String(GameConfiguration.teamID), json));
+    Serial.print(httpsPostRequest("/api/resultat/" + String(GameConfiguration.user) + "/?key=" + postKey + "&couleur=" + GameConfiguration.teamColorString, json));
     http.end();
-
     WiFi.disconnect();
+    result.clear();
 }
 
 
@@ -638,10 +717,9 @@ void setup() {
   // put your setup code here, to run once:
     SystemInit();
     SetLedColor(orange);
-    Serial.print("Esp started successfully");
-    Serial.print(GameConfiguration.user);
-    Serial.print(GameConfiguration.teamID);
-    Serial.print(GameConfiguration.status);
+    Serial.println("Esp started successfully");
+    Serial.println(GameConfiguration.user);
+    Serial.println(GameConfiguration.status);
     /*
     DownloadAdminData();
     SetStatus(DOWNLOADED_STATUS);
@@ -665,7 +743,8 @@ void setup() {
         
     case USERSET_STATUS:
         Serial.print("USERSET");
-        DownloadGame();
+        SetLedColor(black);
+        idleAnimation();
         break;
     case DOWNLOADED_STATUS:
         Serial.print("DOWNLOADED");
@@ -704,12 +783,10 @@ void loop() {
     }
     */
 
-
  	timer.UpdateTimer(millis());
 
     FastLED.show();
     espTime = now();
-
     if(CheckWin() && !winAnimation && GameConfiguration.status == ONGOING_STATUS) {
         Serial.print("win xd");
         for(int i = 0; i < tagArraySize;i++){
@@ -721,6 +798,8 @@ void loop() {
     if ( ! rfid.PICC_IsNewCardPresent())    return;
     if ( ! rfid.PICC_ReadCardSerial())      return;
     
+Serial.print("test");
+
     Tag detectedTag = ReadNtagContent();
 
     if(detectedTag.tagID == 9999){
@@ -729,7 +808,7 @@ void loop() {
     }
 
 
-    if(GameConfiguration.status != ONGOING_STATUS && detectedTag.tagType != 4 && detectedTag.tagType != 6) return;
+    if(GameConfiguration.status != ONGOING_STATUS && detectedTag.tagType != 4 && detectedTag.tagType != 6 && detectedTag.tagType != 5) return;
     if(!isAvailable) return;
 
 
@@ -738,7 +817,6 @@ void loop() {
     case 1:
         detectedTags[GameConfiguration.tagDetectedNumber - 1].BaliseFound();
         detectedTags[GameConfiguration.tagDetectedNumber - 1].timeTocomplete = espTime;
-        GameConfiguration.detectedTags[0];
         isAvailable = false;
         SetLedColor(green);
         timer.AddTimer(millis(), 2000, *LedShowProgression);
@@ -832,19 +910,25 @@ void loop() {
                     SetStatus(USERSET_STATUS);
                     SetLedColor(green);
                     Serial.print("foo");
+                    ESP.reset();
                     break;
                 }
         }
     case 5:
         // Force the download of a new game
-        SetStatus(USERSET_STATUS);
-        ESP.restart();
+        timer.ResetTimer();
+        if (DownloadGame() == 1){
+            SetLedColor(green);
+        }
         break;
     case 6:
         // download User and wifi data
-        DownloadAdminData();
+        if(DownloadAdminData() == 0){
+            return;
+        }
+        
         SetStatus(USERSET_STATUS);
-        ESP.restart();
+        ESP.reset();
         break;
     case 7:
         detectedTags[GameConfiguration.tagDetectedNumber - 1].baliseComplete = true;
