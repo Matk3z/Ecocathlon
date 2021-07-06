@@ -34,9 +34,11 @@ void Tag::EndQuestion(){
 
 bool Tag::TestQCM(int answerData)
 {
+    /*
     if(!QuestionHasStarted){
         return false;
     }
+    */
     if(answerData == 1){
         EndQuestion();
         baliseComplete = true;

@@ -418,6 +418,15 @@ void ResetGameConfig(){
     ESP.reset();
 }
 
+void ResetGameData(){
+    Tag detectedTag = Tag();
+
+    tagArraySize = GameConfiguration.QCM + GameConfiguration.Trouver + GameConfiguration.Ordre + GameConfiguration.Sondage;
+
+    detectedTags = new Tag[tagArraySize];
+    memcpy(GameConfiguration.detectedTags, detectedTags, sizeof(Tag) * tagArraySize);
+}
+
 Tag ReadNtagContent(){
 /*
 Read the content of an NTAG213 and return the UID array
@@ -782,13 +791,14 @@ void loop() {
             DebugTagInfo(GameConfiguration.detectedTags[i]);
     }
     */
-
  	timer.UpdateTimer(millis());
 
     FastLED.show();
     espTime = now();
     if(CheckWin() && !winAnimation && GameConfiguration.status == ONGOING_STATUS) {
+        isAvailable = true;
         Serial.print("win xd");
+        timer.ResetTimer();
         for(int i = 0; i < tagArraySize;i++){
             DebugTagInfo(detectedTags[i]);
         }
@@ -850,6 +860,7 @@ Serial.print("test");
                 GameConfiguration.tagQuestionStarted = NULL;
             }
             else{
+                Serial.print(GameConfiguration.tagQuestionStarted->QuestionHasStarted);
                 isAvailable = false;
                 SetLedColor(red);
                 timer.AddTimer(millis(), 2000, *LedShowProgression);
@@ -907,9 +918,9 @@ Serial.print("test");
             if(CheckWin() && GameConfiguration.status == ONGOING_STATUS){
                     timer.ResetTimer();
                     UploadResult();
-                    SetStatus(USERSET_STATUS);
+                    ResetGameData();
+                    SetStatus(DOWNLOADED_STATUS);
                     SetLedColor(green);
-                    Serial.print("foo");
                     ESP.reset();
                     break;
                 }
