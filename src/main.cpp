@@ -66,28 +66,36 @@ struct GameConfig_t {
     int gameTime;
     char startTime[7];
 
+    int fingerprintAddr;
+    int userNameAddr;
+    int UIDAddr;
+    int passAddr;
+    int newUIDAddr;
+    int newpassAddr;
 
-    char wifiUID[20];
-    char wifiPass[20];
-
-    char newWifiUID[20];
-    char newWifiPass[20];
 
     int QCM;
     int Trouver;
     int Ordre;
     int Sondage;
-    char user[40];
+
     int tagDetectedNumber = 0;
     Tag *tagQuestionStarted = NULL;
     Tag detectedTags[25];
-    char fingerPrint[59];
+
 } GameConfiguration;
 
+String wifiUID = "ecocathlon";
+String wifiPass = "ecocathlon";
 
+String newWifiUID = "ecocathlon";
+String newWifiPass = "ecocathlon";
+
+String fingerPrint = "None";
+
+String user = "None";
 
 Tag *detectedTags;
-Tag *tagQuestionStarted = NULL;
 
 int tagArraySize;
 
@@ -103,18 +111,64 @@ const int httpsPort = 443;
 MFRC522 rfid(CS, RST);
 
 void SaveConfig(){
-    EEPROM.put(1, GameConfiguration);
+    EEPROM.put(0, GameConfiguration);
     EEPROM.commit();
 
 }
 
+int WriteStringInMemory(int addr, const char* string){
+    int stringLenght = strlen(string);
+    EEPROM.write(addr, stringLenght);
+    for (int i = 1; i <= stringLenght;i++){
+        EEPROM.write(addr + i,string[i]);
+    }
+    return addr + stringLenght + 1;
+}
 
-void SetUser(const char* user)
-{
-    strcpy(GameConfiguration.user,user);
+String ReadStringInMemory(int addr){
+    int stringLenght = EEPROM.read(addr);
+    String read;
+    for (int i = 1; i <= stringLenght;i++){
+        read.concat(EEPROM.read(addr + i));
+    }
+    return read;
+}
+
+void WriteAllStringsInMemory(const char* fingerPrint, const char* userName, const char* UID, const char* Pass, const char* newUID, const char* newPass){
+    int addr = 0x600;
+
+    GameConfiguration.fingerprintAddr = addr;
+    addr = WriteStringInMemory(addr, fingerPrint);
+    
+    GameConfiguration.userNameAddr = addr;
+    addr = WriteStringInMemory(addr, userName);
+
+    GameConfiguration.UIDAddr = addr;
+    addr = WriteStringInMemory(addr, UID);
+
+    GameConfiguration.passAddr = addr;
+    addr = WriteStringInMemory(addr, Pass);
+
+    GameConfiguration.newUIDAddr = addr;
+    addr = WriteStringInMemory(addr, newUID);
+
+    GameConfiguration.newpassAddr = addr;
+    addr = WriteStringInMemory(addr, newPass);
+
     SaveConfig();
+}
+
+void ReadAllStringsInMemory(){
+
+    fingerPrint = ReadStringInMemory(GameConfiguration.fingerprintAddr);
+    user = ReadStringInMemory(GameConfiguration.userNameAddr);
+    wifiUID = ReadStringInMemory(GameConfiguration.UIDAddr);
+    wifiPass = ReadStringInMemory(GameConfiguration.passAddr);
+    newWifiPass = ReadStringInMemory(GameConfiguration.newpassAddr);
+    newWifiUID = ReadStringInMemory(GameConfiguration.newUIDAddr);
 
 }
+
 
 void SetStatus(int status)
 {
@@ -225,9 +279,10 @@ void DownloadNewCertificate(){
     String payload = http.getString();
 
     Serial.print(payload);
-    strcpy(GameConfiguration.fingerPrint, payload.c_str());
+    const char * fingerprintTemp = payload.c_str();
+    WriteAllStringsInMemory(fingerprintTemp, user.c_str(), wifiUID.c_str(), wifiPass.c_str(), newWifiUID.c_str(), newWifiPass.c_str());
     SaveConfig();
-    Serial.print("New certificate is" + String(GameConfiguration.fingerPrint));
+    Serial.print("New certificate is" + String(fingerPrint));
 
     certificateClient.stop();
 
@@ -240,8 +295,8 @@ String httpsGetRequest(String url){
   	Serial.print("connecting to ");
   	Serial.println(host);
 
-  	Serial.printf("Using fingerprint '%s'\n", GameConfiguration.fingerPrint);
-  	client.setFingerprint(GameConfiguration.fingerPrint);
+  	Serial.printf("Using fingerprint '%s'\n", fingerPrint);
+  	client.setFingerprint(fingerPrint.c_str());
 
   	if (!client.connect(host, httpsPort)) {
     	Serial.println("connection failed");
@@ -282,8 +337,8 @@ String httpsPostRequest(String url, String data){
   	Serial.print("connecting to ");
   	Serial.println(host);
 
-  	Serial.printf("Using fingerprint '%s'\n", GameConfiguration.fingerPrint);
-  	client.setFingerprint(GameConfiguration.fingerPrint);
+  	Serial.printf("Using fingerprint '%s'\n", fingerPrint);
+  	client.setFingerprint(fingerPrint.c_str());
 
   	if (!client.connect(host, httpsPort)) {
     	Serial.println("connection failed");
@@ -421,13 +476,14 @@ void SystemInit(){
     Serial.begin(115200);
     EEPROM.begin(2048);
 
-    if(EEPROM.read(1) == 0 || EEPROM.read(1) == 255){
+    if(EEPROM.read(0) == 0 || EEPROM.read(0) == 255){
         SetStatus(HARDRESET_STATUS);
         detectedTags = new Tag[1];
         memcpy(GameConfiguration.detectedTags,detectedTags, sizeof(Tag) * 1);
+        WriteAllStringsInMemory(fingerPrint.c_str(), user.c_str(), wifiUID.c_str(), wifiPass.c_str(), newWifiUID.c_str(), newWifiPass.c_str());
         SaveConfig();
     }
-
+    ReadAllStringsInMemory();
     EEPROM.get(1, GameConfiguration);
     WiFi.persistent(false); 
     LedInit();
@@ -437,9 +493,9 @@ void SystemInit(){
 }
 
 void ResetGameConfig(){
-    strcpy(GameConfiguration.wifiUID, "ecocathlon");
-    strcpy(GameConfiguration.wifiPass, "ecocathlon");
-
+    wifiUID = "ecocathlon";
+    wifiPass = "ecocathlon";
+    WriteAllStringsInMemory(fingerPrint.c_str(), user.c_str(), wifiUID.c_str(), wifiPass.c_str(), newWifiUID.c_str(), newWifiPass.c_str());
     SetStatus(USERSET_STATUS);
     ESP.reset();
 }
@@ -620,21 +676,23 @@ void StartGame(){
 int DownloadGame(){
 
 /*
-Download the game data in json for the user from "http://68.183.211.90:80" 
+Download the game data in json for the user from "http://ecocathlon.fr" 
 Deserialize the json into readable data and store the data in the EEPROM
 */
     timer.ResetTimer();
-    strcpy(GameConfiguration.wifiUID, GameConfiguration.newWifiUID);
-    strcpy(GameConfiguration.wifiPass, GameConfiguration.newWifiPass);
+    wifiUID = newWifiUID;
+    wifiPass = newWifiPass;
+
+    WriteAllStringsInMemory(fingerPrint.c_str(), user.c_str(), wifiUID.c_str(), wifiPass.c_str(), newWifiUID.c_str(), newWifiPass.c_str());
 
     while (WIFIInit()  != LINKED_STATUS);
     Serial.println("Successfully connected to the network");
     Serial.print("Downloading game data");
-    Serial.print("/api/config/" + String(GameConfiguration.user) + "?key="+ getKey);
-    String StringData = httpsGetRequest("/api/config/" + String(GameConfiguration.user) + "?key="+ getKey);
+    Serial.print("/api/config/" + String(user) + "?key="+ getKey);
+    String StringData = httpsGetRequest("/api/config/" + String(user) + "?key="+ getKey);
     if(StringData == "0"){
         //retrying to pull data from server
-        StringData = httpsGetRequest("/api/config/" + String(GameConfiguration.user) + "?key="+ getKey);
+        StringData = httpsGetRequest("/api/config/" + String(user) + "?key="+ getKey);
         if(StringData == "0"){
             Serial.print("HTTP request failed");
             SetLedColor(red);
@@ -644,7 +702,7 @@ Deserialize the json into readable data and store the data in the EEPROM
     }
     deserializeJson(doc, StringData.c_str());
     
-    if(doc["user"] != GameConfiguration.user)
+    if(doc["user"] != user)
         SetStatus(BUG_STATUS);
     
     
@@ -676,8 +734,8 @@ Deserialize the json into readable data and store the data in the EEPROM
     String uid = doc["uid"];
     String password = doc["password"];
     Serial.println("Set password : " + password + "uid : " + uid);
-    strcpy(GameConfiguration.newWifiUID, uid.c_str());
-    strcpy(GameConfiguration.newWifiPass, password.c_str());
+    newWifiUID = uid;
+    newWifiPass = password;
 
     int sondage = doc["sondage"];
 
@@ -717,9 +775,10 @@ int DownloadAdminData(){
     WiFi.disconnect();
 
     deserializeJson(doc, stringData);
-    String userTemp = doc["orga"];
+    const char* userTemp = doc["orga"];
     Serial.println(userTemp);
-    SetUser(userTemp.c_str());
+    WriteAllStringsInMemory(fingerPrint.c_str(), user.c_str(), wifiUID.c_str(), wifiPass.c_str(), newWifiUID.c_str(), newWifiPass.c_str());
+
     doc.clear();
     return 1;
 }
@@ -770,10 +829,10 @@ void UploadResult(){
     serializeJson(result, json);
     Serial.print(json);
     //json = "{\"equipe\":2,\"qcm\":[\"1\"],\"ordre\":[\"2\"],\"trouver\":[\"3\"],\"repTt\":15,\"tempsTt\":\"17:22:10\",\"sondage\":[]}";
-    String StringData = httpsPostRequest("/api/resultat/" + String(GameConfiguration.user) + "/?key=" + postKey + "&couleur=" + GameConfiguration.teamColorString, json);
+    String StringData = httpsPostRequest("/api/resultat/" + String(user) + "/?key=" + postKey + "&couleur=" + GameConfiguration.teamColorString, json);
     if(StringData == "0"){
         //retrying to pull data from server
-        StringData = httpsPostRequest("/api/resultat/" + String(GameConfiguration.user) + "/?key=" + postKey + "&couleur=" + GameConfiguration.teamColorString, json);
+        StringData = httpsPostRequest("/api/resultat/" + String(user) + "/?key=" + postKey + "&couleur=" + GameConfiguration.teamColorString, json);
         if(StringData == "0"){
             Serial.print("HTTPs request failed");
             SetLedColor(red);
@@ -795,7 +854,7 @@ void setup() {
     SystemInit();
     ShowStatusLed(orange);
     Serial.println("Esp started successfully");
-    Serial.println(GameConfiguration.user);
+    Serial.println(user);
     Serial.println(GameConfiguration.status);
     /*
     DownloadAdminData();
@@ -809,6 +868,7 @@ void setup() {
     for(int i = 0; i < tagArraySize;i++){
         DebugTagInfo(detectedTags[i]);
     }
+    
     memcpy(GameConfiguration.detectedTags, detectedTags, sizeof(Tag) * tagArraySize);
     isAvailable = true;
 
