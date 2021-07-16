@@ -9,7 +9,11 @@ Tag::Tag(){
     timeTocomplete = 0;
 
 }
-
+void Tag::SetTagInformation(int id, int type, int data){
+    tagID = id;
+    tagType = type;
+    tagData = data;
+}
 void Tag::StartQuestion(time_t startTime)
 {
 
