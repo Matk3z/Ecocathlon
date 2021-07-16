@@ -295,7 +295,7 @@ String httpsGetRequest(String url){
   	Serial.print("connecting to ");
   	Serial.println(host);
 
-  	Serial.printf("Using fingerprint '%s'\n", fingerPrint);
+  	Serial.printf("Using fingerprint '%s'\n", fingerPrint.c_str());
   	client.setFingerprint(fingerPrint.c_str());
 
   	if (!client.connect(host, httpsPort)) {
@@ -337,7 +337,7 @@ String httpsPostRequest(String url, String data){
   	Serial.print("connecting to ");
   	Serial.println(host);
 
-  	Serial.printf("Using fingerprint '%s'\n", fingerPrint);
+  	Serial.printf("Using fingerprint '%s'\n", fingerPrint.c_str());
   	client.setFingerprint(fingerPrint.c_str());
 
   	if (!client.connect(host, httpsPort)) {
@@ -501,7 +501,7 @@ void ResetGameConfig(){
 }
 
 void ResetGameData(){
-    Tag detectedTag = Tag();
+    
 
     tagArraySize = GameConfiguration.QCM + GameConfiguration.Trouver + GameConfiguration.Ordre + GameConfiguration.Sondage;
 
@@ -623,8 +623,8 @@ int GetTotalTime(){
     return answTime;
 }
 int* GetTime(int type){
-    int* tagTime;
-    int tagMaxNumber;
+    int* tagTime = 0;
+    int tagMaxNumber = 0;
 
     switch(type){
         case 1:

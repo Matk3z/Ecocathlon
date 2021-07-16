@@ -13,8 +13,7 @@
 #define DEPRECATED_MSG(msg) [[deprecated(msg)]]
 #endif // __has_cpp_attribute(deprecated)
 #else
-#define DEPRECATED __attribute__((deprecated))
-#define DEPRECATED_MSG(msg) __attribute__((deprecated(msg)))
+
 #endif // __has_cpp_attribute
 
 #endif // DEPRECATED_H
