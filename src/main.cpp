@@ -23,7 +23,6 @@
 #define LED_PIN 2
 #define CS 15
 #define RST 5
-#define tagDataOffset 64
 
 #define ledNumber 8
 #define BRIGHTNESS 255   /* Control the brightness of your leds */
@@ -61,15 +60,12 @@ bool isLit = false;
 int StatusAnimationCount = 0;
 CRGB statusColor;
 
-int sondageAnswered;
 
 struct GameConfig_t {
     int status;
-    bool gameStarted;
     String teamColorString;
     int teamColor;
     int gameTime;
-    char startTime[7];
 
     int fingerprintAddr;
     int userNameAddr;
@@ -104,7 +100,6 @@ Tag *detectedTags;
 
 int tagArraySize;
 
-int QuestionType;
 
 const char* host = "ecocathlon.fr";
 const int httpsPort = 443;
@@ -184,7 +179,7 @@ void SetStatus(int status)
 }
 
 void DebugTagInfo(Tag tag){
-    Serial.printf("id : %d    type : %d    isComplete : %d    timeToComplete : %d\n", tag.GetID(), tag.GetType(), tag.baliseComplete, tag.timeTocomplete);
+    Serial.printf("id : %d    type : %d    isComplete : %d    timeToComplete : %d\n", tag.GetID(), tag.GetType(), tag.GetBaliseCompletionState(), tag.timeTocomplete);
 }
 
 void LedShowProgression(){
@@ -192,7 +187,7 @@ void LedShowProgression(){
     int baliseCompleted = 0;
 
     for(int i = 0; i < tagArraySize;i++){
-        if(detectedTags[i].baliseComplete){
+        if(detectedTags[i].GetBaliseCompletionState()){
             baliseCompleted++;
         }
     }
@@ -575,7 +570,7 @@ Read the content of an NTAG213 and return the UID array
     Serial.println(detectedTags[GameConfiguration.tagDetectedNumber - 1].GetID());
     if(GameConfiguration.tagQuestionStarted != NULL){
         if(detectedTags[GameConfiguration.tagDetectedNumber - 1].GetID() != detectedTagID || detectedTags[GameConfiguration.tagDetectedNumber - 1].GetType() != detectedTagType){
-            if(detectedTags[GameConfiguration.tagDetectedNumber - 1].baliseComplete == 0){
+            if(detectedTags[GameConfiguration.tagDetectedNumber - 1].GetBaliseCompletionState() == 0){
                 Serial.println("Previous question not completed");
                 detectedTag.SetID(9999);
                 return detectedTag;
@@ -589,7 +584,7 @@ Read the content of an NTAG213 and return the UID array
     for (int i = 0; i < tagArraySize - 1; i++){
         if(detectedTags[i].GetID() == detectedTagID){
             if(detectedTags[i].GetType() == detectedTagType){
-                if(detectedTags[i].baliseComplete == 0){
+                if(detectedTags[i].GetBaliseCompletionState() == 0){
                     GameConfiguration.tagDetectedNumber--;
                 }
                 else{
@@ -612,9 +607,9 @@ Read the content of an NTAG213 and return the UID array
 bool CheckWin(){
     for(int i = 0; i < tagArraySize; i++){
         if (detectedTags[i].GetType() == 1){
-            detectedTags[i].baliseComplete = true;
+            detectedTags[i].BaliseFound();
         }
-        if(!detectedTags[i].baliseComplete){
+        if(!detectedTags[i].GetBaliseCompletionState()){
             return false;
         }
     }
@@ -628,6 +623,7 @@ int GetTotalTime(){
     }
     return answTime;
 }
+
 int* GetTime(int type){
     int* tagTime = 0;
     int tagMaxNumber = 0;
@@ -718,8 +714,6 @@ Deserialize the json into readable data and store the data in the EEPROM
     GameConfiguration.Sondage = doc ["sondage"];
     
 
-    strcpy(GameConfiguration.startTime, doc["time"]);
-    Serial.print(GameConfiguration.startTime);
     tagArraySize = GameConfiguration.QCM + GameConfiguration.Trouver + GameConfiguration.Ordre + GameConfiguration.Sondage;
 
     detectedTags = new Tag[tagArraySize];    
@@ -975,16 +969,18 @@ Serial.print("test");
     switch (detectedTag.GetType())
     {
     case 1:
+    // Balise Trouver
         isAvailable = false;
         detectedTags[GameConfiguration.tagDetectedNumber - 1].BaliseFound();
         detectedTags[GameConfiguration.tagDetectedNumber - 1].timeTocomplete = GameConfiguration.gameTime;
-        detectedTags[GameConfiguration.tagDetectedNumber - 1].baliseComplete = true;
         SetLedColor(green);
         timer.AddTimer(millis(), 2000, *LedShowProgression);
         Serial.println("balise trouver");
         break;
     case 2:
+    // Balise QCM
         if(detectedTag.GetData() == 0){
+            // Start the question
             isAvailable = false;
             Serial.println("Question QCM commencée");
             detectedTags[GameConfiguration.tagDetectedNumber - 1].StartQuestion(espTime);
@@ -996,12 +992,13 @@ Serial.print("test");
             break;
         }else if (detectedTag.GetData() > 0)
         {
+            // If an answer tag is detected but no QCM question has started yet
             if(GameConfiguration.tagQuestionStarted == NULL){
                 Serial.print("Aucune question n'a été commencée");
                 break;
             }
             if(GameConfiguration.tagQuestionStarted->TestQCM(detectedTag.GetData())){
-                    // Question reussi
+                 // Right answer
                 isAvailable = false;
                 SetLedColor(green);
                 timer.AddTimer(millis(), 2000, *LedShowProgression);
@@ -1011,7 +1008,7 @@ Serial.print("test");
                 GameConfiguration.tagQuestionStarted = NULL;
             }
             else{
-                Serial.print(GameConfiguration.tagQuestionStarted->QuestionHasStarted);
+                //Wrong Answer
                 isAvailable = false;
                 SetLedColor(red);
                 timer.AddTimer(millis(), 2000, *LedShowProgression);
@@ -1019,7 +1016,9 @@ Serial.print("test");
             break;
         }
     case 3:
+    // Balise Trouver
         if(detectedTag.GetData() == 0){
+            // Start the question
             Serial.println("Question ordre commencé");
             Serial.println("");
             detectedTags[GameConfiguration.tagDetectedNumber - 1].StartQuestion(espTime);
@@ -1031,6 +1030,7 @@ Serial.print("test");
             break;
         }else if (detectedTag.GetData() > 0)
         {
+            // If an answer tag is detected but no Trouver question has started yet
             if(GameConfiguration.tagQuestionStarted == NULL){
                 Serial.println("Aucune question n'a été commencée");
                 isAvailable = false;
@@ -1038,13 +1038,13 @@ Serial.print("test");
                 timer.AddTimer(millis(), 2000, *LedShowProgression);
                 break;
             }
-            if(GameConfiguration.tagQuestionStarted->QuestionHasStarted && GameConfiguration.tagQuestionStarted->TestOrder(detectedTag.GetData())){
-                // Question reussi
+            if(GameConfiguration.tagQuestionStarted->GetHasStarted() && GameConfiguration.tagQuestionStarted->TestOrder(detectedTag.GetData())){
+                // Right Answer
                 Serial.println("bon ordre");
                 isAvailable = false;
                 SetLedColor(green);
                 timer.AddTimer(millis(), 2000, *LedShowProgression);
-                if(GameConfiguration.tagQuestionStarted->baliseComplete){
+                if(GameConfiguration.tagQuestionStarted->GetBaliseCompletionState()){
                     Serial.println(GameConfiguration.tagQuestionStarted->GetTimeToComplete(espTime));
                     Serial.printf("question réussi en %d secondes\n", GameConfiguration.tagQuestionStarted->timeTocomplete);
                     GameConfiguration.tagQuestionStarted = NULL;
@@ -1053,6 +1053,7 @@ Serial.print("test");
             break;
             }
             else{
+                // Wrong answer
                 isAvailable = false;
                 SetLedColor(red);
                 timer.AddTimer(millis(), 2000, *LedShowProgression);
@@ -1067,6 +1068,7 @@ Serial.print("test");
         break;
         }
         else{
+            // End the game
             if(CheckWin() && GameConfiguration.status == ONGOING_STATUS){
                     timer.ResetTimer();
                     UploadResult();
@@ -1096,7 +1098,8 @@ Serial.print("test");
         ESP.reset();
         break;
     case 7:
-        detectedTags[GameConfiguration.tagDetectedNumber - 1].baliseComplete = true;
+        // Balise sondage
+        detectedTags[GameConfiguration.tagDetectedNumber - 1].BaliseFound();
         SetLedColor(green);
         timer.AddTimer(millis(), 2000, *LedShowProgression);
         Serial.println("sondage : %i");

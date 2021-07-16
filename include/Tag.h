@@ -11,10 +11,11 @@ private:
     int tagID;
     int tagType;
     int tagData;
-
-public:
-    bool baliseComplete = false;
     bool QuestionHasStarted;
+    bool baliseComplete;
+public:
+
+
     int secStart = 0;
 
     int timeTocomplete;
@@ -30,6 +31,12 @@ public:
     }
     int GetData(){
         return tagData;
+    }
+    bool GetHasStarted(){
+        return QuestionHasStarted;
+    }
+    bool GetBaliseCompletionState(){
+        return baliseComplete;
     }
 
     Tag();
