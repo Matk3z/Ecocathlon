@@ -104,7 +104,7 @@ int QuestionType;
 char ssid[] = "ecocathlon";
 char pass[] = "ecocathlon";
 
-const char* host = "ecocathlon.fr";
+const char* host = "www.ecocathlon.fr";
 const int httpsPort = 443;
 
                         
@@ -118,19 +118,24 @@ void SaveConfig(){
 
 int WriteStringInMemory(int addr, const char* string){
     int stringLenght = strlen(string);
+    Serial.println("Writing " + String(stringLenght) + " bytes at the address " + String(addr));
     EEPROM.write(addr, stringLenght);
     for (int i = 1; i <= stringLenght;i++){
-        EEPROM.write(addr + i,string[i]);
+        EEPROM.write(addr + i,string[i - 1]);
     }
+    EEPROM.commit();
     return addr + stringLenght + 1;
 }
 
 String ReadStringInMemory(int addr){
     int stringLenght = EEPROM.read(addr);
+    Serial.println("reading at address : " + String(addr));
     String read;
     for (int i = 1; i <= stringLenght;i++){
-        read.concat(EEPROM.read(addr + i));
+        char character = char(EEPROM.read(addr+i));
+        read.concat(character);
     }
+    Serial.println(read);
     return read;
 }
 
@@ -245,7 +250,7 @@ int WIFIInit(){
     timer.ResetTimer();
     FastLED.clear(true);
     Serial.println();
-    Serial.print("Connecting");
+    Serial.print("Connecting with UID : " + wifiUID + " pass : " + wifiPass);
     for(int i = 0; i < 100;i++)
     {
         Serial.print(".");
@@ -274,15 +279,16 @@ void DownloadNewCertificate(){
 
     http.begin(certificateClient, "http://54.36.98.8:3500/");
     int httpCode = http.GET();
-    Serial.print(httpCode);
 
+    Serial.print(httpCode);
     String payload = http.getString();
 
     Serial.print(payload);
+    fingerPrint = payload;
     const char * fingerprintTemp = payload.c_str();
     WriteAllStringsInMemory(fingerprintTemp, user.c_str(), wifiUID.c_str(), wifiPass.c_str(), newWifiUID.c_str(), newWifiPass.c_str());
     SaveConfig();
-    Serial.print("New certificate is" + String(fingerPrint));
+    Serial.print("New certificate is" + fingerPrint);
 
     certificateClient.stop();
 
@@ -309,10 +315,11 @@ String httpsGetRequest(String url){
 
   	client.print(String("GET ") + url + " HTTP/1.1\r\n" +
                "Host: " + host + "\r\n" +
-               "Connection: close\r\n\r\n");
+               "Connection: keep-alive\r\n\r\n");
 
 	while (client.connected()) {
     String line = client.readStringUntil('\n');
+    Serial.print("header : " + line);
     if (line == "\r") {
       	Serial.println("headers received");
       	break;
@@ -359,7 +366,7 @@ String httpsPostRequest(String url, String data){
     client.println("POST " + url + " HTTP/1.1");
     client.println("Host: ecocathlon.fr");
     client.println("Cache-Control: no-cache");
-    client.println("Connection: close");
+    client.println("Connection: keep-alive");
     client.println("Content-Type: application/json");
     client.print("Content-Length: ");
     client.println(data.length());
@@ -480,7 +487,7 @@ void SystemInit(){
         SetStatus(HARDRESET_STATUS);
         detectedTags = new Tag[1];
         memcpy(GameConfiguration.detectedTags,detectedTags, sizeof(Tag) * 1);
-        WriteAllStringsInMemory(fingerPrint.c_str(), user.c_str(), wifiUID.c_str(), wifiPass.c_str(), newWifiUID.c_str(), newWifiPass.c_str());
+        WriteAllStringsInMemory(fingerPrint.c_str(), user.c_str(), "ecocathlon", "ecocathlon", "ecocathlon", "ecocathlon");
         SaveConfig();
     }
     ReadAllStringsInMemory();
@@ -876,6 +883,7 @@ void setup() {
     {
     case HARDRESET_STATUS:
         Serial.print("HARDRESET");
+        DownloadAdminData();
         break;
         
     case USERSET_STATUS:
