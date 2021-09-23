@@ -883,7 +883,6 @@ void setup() {
     {
     case HARDRESET_STATUS:
         Serial.print("HARDRESET");
-        DownloadAdminData();
         break;
         
     case USERSET_STATUS:
