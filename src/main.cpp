@@ -479,20 +479,20 @@ void LedInit(){
 }
 
 void SystemInit(){
-
     Serial.begin(115200);
     EEPROM.begin(2048);
 
     if(EEPROM.read(0) == 0 || EEPROM.read(0) == 255){
         SetStatus(HARDRESET_STATUS);
+        Serial.print("this is hard reseted");
         detectedTags = new Tag[1];
         memcpy(GameConfiguration.detectedTags,detectedTags, sizeof(Tag) * 1);
         WriteAllStringsInMemory(fingerPrint.c_str(), user.c_str(), "ecocathlon", "ecocathlon", "ecocathlon", "ecocathlon");
         SaveConfig();
+        ReadAllStringsInMemory();
     }
+    EEPROM.get(0, GameConfiguration);
     ReadAllStringsInMemory();
-    EEPROM.get(1, GameConfiguration);
-    WiFi.persistent(false); 
     LedInit();
     SPI.begin();
 	rfid.PCD_Init();
@@ -782,9 +782,9 @@ int DownloadAdminData(){
     WiFi.disconnect();
 
     deserializeJson(doc, stringData);
-    const char* userTemp = doc["orga"];
+    String userTemp = doc["orga"];
     Serial.println(userTemp);
-    WriteAllStringsInMemory(fingerPrint.c_str(), user.c_str(), wifiUID.c_str(), wifiPass.c_str(), newWifiUID.c_str(), newWifiPass.c_str());
+    WriteAllStringsInMemory(fingerPrint.c_str(), userTemp.c_str(), wifiUID.c_str(), wifiPass.c_str(), newWifiUID.c_str(), newWifiPass.c_str());
 
     doc.clear();
     return 1;
